@@ -20,7 +20,7 @@ natively on `ubuntu-24.04-arm` runners and published as an installable package.
 
 ```bash
 # grab the debs from the latest release
-gh release download --repo <owner>/dux-linux-arm64 --pattern '*.deb' --dir dux-debs
+gh release download --repo stepinus/dux-linux-arm64 --pattern '*.deb' --dir dux-debs
 sudo apt install ./dux-debs/*.deb      # quickshell must already be present
 ```
 
