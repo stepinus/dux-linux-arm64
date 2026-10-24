@@ -40,6 +40,11 @@ case $pkg in
   dux-search)
     make -C "$src" build
     install -Dm755 "$src/bin/dsearch" "$stage/usr/bin/dsearch"
+    # upstream only ships the unit as an install-service target that hardcodes
+    # /usr/local/bin; package it properly instead of leaving the user to do it
+    mkdir -p "$stage/usr/lib/systemd/user"
+    sed 's|^ExecStart=.*|ExecStart=/usr/bin/dsearch serve|' "$src/assets/dsearch.service" \
+      > "$stage/usr/lib/systemd/user/dsearch.service"
     desc="Dux Search - indexed filesystem search (dsearch)"
     ;;
   dux-calendar)

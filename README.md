@@ -31,6 +31,10 @@ of `dux-shell`, so the packages install on a system without it, but the shell ne
 After installing, run `dms-greeter enable` (or `dms-greeter install`) if you want the login screen,
 and `dms setup` for compositor config.
 
+`dux-search` ships its systemd **user** unit at `/usr/lib/systemd/user/dsearch.service`; enable it with
+`systemctl --user enable --now dsearch` and put a config at `~/.config/dsearch/config.toml`
+(index paths are not defaulted — see upstream `config.example.toml`).
+
 ## Builds
 
 `.github/workflows/build.yml`:
