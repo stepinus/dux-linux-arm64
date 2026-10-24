@@ -1,0 +1,87 @@
+name: build arm64 debs
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream ref/tag to build (empty = latest release of each component)"
+        required: false
+  schedule:
+    - cron: "0 4 * * 1"
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-arm64
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+      version: ${{ steps.gen.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ inputs.ref }}
+        run: bash scripts/resolve-matrix.sh >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.resolve.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: duxlabs-dev/${{ matrix.repo }}
+          ref: ${{ matrix.ref }}
+          path: src
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.gomod }}
+          cache: false
+          # ponytail: Go toolchain comes from go.dev; preinstalled Go on the runner is not 1.27 yet.
+          check-latest: false
+      - name: build + package
+        run: bash scripts/build-deb.sh ${{ matrix.pkg }} src dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.pkg }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  publish:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: debs
+          merge-multiple: true
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd debs
+          sha256sum *.deb > SHA256SUMS
+          cd ..
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" debs/* -R "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" debs/* -R "$GITHUB_REPOSITORY" \
+              --title "Dux ${{ needs.resolve.outputs.version }} (arm64)" \
+              --notes "arm64 .deb packages built from duxlabs-dev sources at tag \`${{ needs.resolve.outputs.version }}\`."
+          fi
